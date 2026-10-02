@@ -1,0 +1,11 @@
+requests
+# Parse RSS feeds into title, description and link
+feedparser
+# local Ollama server
+ollama
+# Connect to SQL Server through ODBC Driver 18
+pyodbc
+# Load settings from .env
+python-dotenv
+# Extract the main article text from a downloaded page
+trafilatura
