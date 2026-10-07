@@ -19,6 +19,11 @@ CATEGORIES = [name.strip() for name in os.getenv("CATEGORIES", "").split(",")]
 WANTED = [name.strip() for name in os.getenv("WANTED_CATEGORIES", "").split(",")]
 MODEL = os.getenv("OLLAMA_MODEL")
 MAX_ENTRIES_PER_FEED = int(os.getenv("MAX_ENTRIES_PER_FEED", "5"))
+# Speed settings for summarize(): trim the article (characters), cap the reply (tokens)
+TRIM_TEXT = os.getenv("TRIM_TEXT", "false").lower() == "true"
+TRIM_SIZE = int(os.getenv("TRIM_SIZE", "4000"))
+CAP_TEXT = os.getenv("CAP_TEXT", "false").lower() == "true"
+CAP_SIZE = int(os.getenv("CAP_SIZE", "300"))
 
 # Some sites refuse requests that don't look like a browser
 BROWSER_HEADERS = {
@@ -27,6 +32,14 @@ BROWSER_HEADERS = {
 }
 # Shorter than this is a paywall or consent page, not an article
 MIN_ARTICLE_CHARS = 200
+
+
+def ask_model(prompt, options, format=""):
+    """Send one prompt to the model and return its reply text."""
+    # think=False: gemma4 otherwise writes hidden reasoning before every reply
+    response = ollama.chat(model=MODEL, messages=[{"role": "user", "content": prompt}],
+                           format=format, think=False, options=options)
+    return response["message"]["content"]
 
 
 def categorize(title, description):
@@ -40,8 +53,7 @@ def categorize(title, description):
     if description:
         prompt += f"Description: {description}\n"
 
-    response = ollama.chat(model=MODEL, messages=[{"role": "user", "content": prompt}])
-    reply = response["message"]["content"].strip(" \n.*\"'").lower()
+    reply = ask_model(prompt, {"temperature": 0}).strip(" \n.*\"'").lower()
 
     # Anything not in CATEGORIES would break the CategoryId foreign key later
     category = "Other"
@@ -53,6 +65,12 @@ def categorize(title, description):
 
 def summarize(text):
     """Return (summary, importance 1-10), or (None, None) if the reply is unusable."""
+    if TRIM_TEXT:
+        text = text[:TRIM_SIZE]
+    options = {"temperature": 0}
+    if CAP_TEXT:
+        options["num_predict"] = CAP_SIZE
+
     prompt = (
         "Summarize this news article in 3-4 sentences of plain prose, and rate how "
         "important it is to a general reader from 1 (trivial) to 10 (major).\n"
@@ -62,9 +80,9 @@ def summarize(text):
         f"Article:\n{text}"
     )
     try:
-        # ResponseError: the model can loop on long pages and Ollama aborts the request
-        response = ollama.chat(model=MODEL, messages=[{"role": "user", "content": prompt}], format="json")
-        reply = json.loads(response["message"]["content"])
+        # ResponseError: the model can loop on long pages and Ollama aborts the request.
+        # A reply cut off by CAP_SIZE is invalid JSON and lands in ValueError.
+        reply = json.loads(ask_model(prompt, options, format="json"))
         summary = str(reply["summary"]).strip()
         importance = int(reply["importance"])
     except (ollama.ResponseError, ValueError, KeyError, TypeError):
