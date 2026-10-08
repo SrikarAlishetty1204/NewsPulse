@@ -23,7 +23,7 @@ logger.addHandler(file_handler)
 
 # pythonw.exe (used by the scheduled task) has no console, so sys.stdout is None there
 if sys.stdout is not None:
-    # The Hindu titles contain zero-width characters that crash the default Windows console
+    # Feed titles can contain zero-width characters that crash the default Windows console
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
