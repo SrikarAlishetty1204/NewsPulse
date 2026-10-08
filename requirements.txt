@@ -11,3 +11,5 @@ python-dotenv
 trafilatura
 # trafilatura needs this; newer lxml versions moved it to a separate package
 lxml_html_clean
+# Check free RAM before loading the model
+psutil
