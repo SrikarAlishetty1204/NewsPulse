@@ -101,6 +101,8 @@ def fetch_news(saved_urls):
 
     counts = {"seen": 0, "duplicate": 0, "gated-out": 0, "fetch-failed": 0,
               "summary-failed": 0, "summarized": 0}
+    # Copy so links seen during this run are skipped too, without changing the caller's set
+    skip_urls = set(saved_urls)
     articles = []
     for rss_url in RSS_URLS:
         rss_url = rss_url.strip()
@@ -113,11 +115,12 @@ def fetch_news(saved_urls):
             counts["seen"] += 1
             title = entry.title
 
-            # Checked before categorizing so a re-run costs no model calls
-            if entry.link in saved_urls:
+            # Checked before categorizing so a re-run or a repeated link costs no model calls
+            if entry.link in skip_urls:
                 counts["duplicate"] += 1
                 print(f"{'duplicate':<11} | {'skip':<6} | {title}")
                 continue
+            skip_urls.add(entry.link)
 
             description = html.unescape(re.sub(r"<[^>]+>", "", entry.get("description", ""))).strip()
             category = categorize(title, description)
