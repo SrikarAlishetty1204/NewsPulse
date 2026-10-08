@@ -4,6 +4,8 @@ from email.message import EmailMessage
 
 from dotenv import load_dotenv
 
+from src.logger import logger
+
 load_dotenv()
 
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
@@ -20,7 +22,7 @@ def send_digest(articles):
         if article["summary"]:
             summarized.append(article)
     if not summarized:
-        print("no new articles, mail not sent")
+        logger.info("no new articles, mail not sent")
         return
 
     summarized.sort(key=lambda article: article["importance"], reverse=True)
@@ -46,4 +48,4 @@ def send_digest(articles):
         server.starttls()
         server.login(SMTP_USER, SMTP_PASSWORD)
         server.send_message(message)
-    print("mailed", len(summarized), "articles to", MAIL_TO)
+    logger.info(f"mailed {len(summarized)} articles to {MAIL_TO}")

@@ -1,5 +1,6 @@
 import os
 
+from src.logger import logger
 from src.news_service import fetch_news
 
 OUTPUT_FILE = "output/articles.txt"
@@ -22,4 +23,4 @@ if __name__ == "__main__":
             else:
                 out.write("TEXT:     (not fetched)\n")
             out.write("\n" + "=" * 80 + "\n\n")
-    print("Wrote", OUTPUT_FILE)
+    logger.info(f"wrote {OUTPUT_FILE}")

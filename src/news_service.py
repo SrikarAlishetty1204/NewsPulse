@@ -2,7 +2,6 @@ import html
 import json
 import os
 import re
-import sys
 import time
 
 import feedparser
@@ -10,6 +9,8 @@ import ollama
 import requests
 import trafilatura
 from dotenv import load_dotenv
+
+from src.logger import logger
 
 load_dotenv()
 
@@ -96,9 +97,6 @@ def summarize(text):
 
 def fetch_news(saved_urls):
     """Return categorized articles; wanted ones also get text, summary and importance."""
-    # The Hindu titles contain zero-width characters that crash the default Windows console
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-
     counts = {"seen": 0, "duplicate": 0, "gated-out": 0, "fetch-failed": 0,
               "summary-failed": 0, "summarized": 0}
     # Copy so links seen during this run are skipped too, without changing the caller's set
@@ -109,7 +107,7 @@ def fetch_news(saved_urls):
         if not rss_url:
             continue
         feed = feedparser.parse(rss_url)
-        print(f"{rss_url}: {len(feed.entries)} entries, taking {MAX_ENTRIES_PER_FEED}")
+        logger.info(f"{rss_url}: {len(feed.entries)} entries, taking {MAX_ENTRIES_PER_FEED}")
 
         for entry in feed.entries[:MAX_ENTRIES_PER_FEED]:
             counts["seen"] += 1
@@ -118,15 +116,15 @@ def fetch_news(saved_urls):
             # Checked before categorizing so a re-run or a repeated link costs no model calls
             if entry.link in skip_urls:
                 counts["duplicate"] += 1
-                print(f"{'duplicate':<11} | {'skip':<6} | {title}")
+                logger.info(f"{'duplicate':<11} | {'skip':<6} | {title}")
                 continue
             skip_urls.add(entry.link)
 
             description = html.unescape(re.sub(r"<[^>]+>", "", entry.get("description", ""))).strip()
             category = categorize(title, description)
             wanted = category in WANTED
-            print(f"{category:<11} | {'wanted' if wanted else 'skip':<6} | {title}")
-            print(f"{entry.link}")
+            logger.info(f"{category:<11} | {'wanted' if wanted else 'skip':<6} | {title}")
+            logger.debug(entry.link)
             if not wanted:
                 counts["gated-out"] += 1
 
@@ -136,16 +134,16 @@ def fetch_news(saved_urls):
                 try:
                     page = requests.get(entry.link, headers=BROWSER_HEADERS, timeout=15)
                     if page.status_code != 200:
-                        print(f"fetch failed: HTTP {page.status_code}")
+                        logger.warning(f"fetch failed: HTTP {page.status_code}")
                     else:
                         text = trafilatura.extract(page.text, include_comments=False, include_tables=False)
                         if not text or len(text) < MIN_ARTICLE_CHARS:
-                            print("fetch failed: no article text found")
+                            logger.warning("fetch failed: no article text found")
                             text = None
                         else:
-                            print(f"fetched {len(text.split())} words")
+                            logger.debug(f"fetched {len(text.split())} words")
                 except requests.RequestException as error:
-                    print(f"fetch failed: {error}")
+                    logger.warning(f"fetch failed: {error}")
                 time.sleep(1)
                 if text is None:
                     counts["fetch-failed"] += 1
@@ -156,10 +154,10 @@ def fetch_news(saved_urls):
                 summary, importance = summarize(text)
                 if summary is None:
                     counts["summary-failed"] += 1
-                    print("summary failed: not an article, or no usable reply from the model")
+                    logger.warning("summary failed: not an article, or no usable reply from the model")
                 else:
                     counts["summarized"] += 1
-                    print(f"summarized, importance {importance}")
+                    logger.debug(f"summarized, importance {importance}")
 
             articles.append({
                 "title": title,
@@ -176,5 +174,5 @@ def fetch_news(saved_urls):
     # Ollama otherwise keeps the model in RAM for 5 minutes after the last call
     ollama.generate(model=MODEL, keep_alive=0)
 
-    print(" / ".join(f"{name} {count}" for name, count in counts.items()))
+    logger.info(" / ".join(f"{name} {count}" for name, count in counts.items()))
     return articles

@@ -2,6 +2,8 @@ import os
 import pyodbc 
 from dotenv import load_dotenv
 
+from src.logger import logger
+
 load_dotenv()
 
 def get_connection():
@@ -51,5 +53,5 @@ def save_articles(articles):
     connection.commit()
     connection.close()
 
-    print("inserted", inserted)
+    logger.info(f"inserted {inserted}")
     return inserted
